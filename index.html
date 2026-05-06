@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CPG Scenario Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="background-orb orb-a"></div>
+    <div class="background-orb orb-b"></div>
+
+    <main class="container">
+      <header class="hero">
+        <p class="eyebrow">Decision Support</p>
+        <h1>CPG Scenario Engine</h1>
+        <p class="subtitle">
+          Run baseline and what-if scenarios for price, COGS, CAC, order volume,
+          and retention to evaluate revenue, profit, and LTV posture.
+        </p>
+      </header>
+
+      <section class="panel">
+        <h2>Base Inputs</h2>
+        <form id="base-form" class="grid"></form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Scenarios</h2>
+          <div class="actions">
+            <button id="add-scenario-btn" type="button" class="secondary">Add Scenario</button>
+            <button id="run-btn" type="button">Run Analysis</button>
+          </div>
+        </div>
+        <p class="hint">
+          Leave override fields blank to inherit base input values.
+        </p>
+        <div id="scenario-editor" class="scenario-editor" aria-live="polite"></div>
+        <p id="error" class="error" role="alert"></p>
+      </section>
+
+      <section class="panel" id="summary-panel">
+        <h2>Highlights</h2>
+        <div id="summary-cards" class="cards"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Scenario Results</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Scenario</th>
+                <th>Revenue</th>
+                <th>Profit</th>
+                <th>LTV</th>
+                <th>CAC</th>
+                <th>LTV:CAC</th>
+                <th>Recommendation</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="model.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

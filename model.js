@@ -11,8 +11,55 @@ const BASELINE = {
   repeatRate: 0.3    // repeat purchase rate (30%)
 };
 
+const DEFAULT_SCENARIOS = [
+  {
+    name: "Baseline",
+    changes: {}
+  },
+  {
+    name: "High CAC (ads inefficient)",
+    changes: { cac: 12 }
+  },
+  {
+    name: "Lower COGS (better supplier)",
+    changes: { cogs: 3 }
+  },
+  {
+    name: "Higher Price",
+    changes: { price: 14 }
+  },
+  {
+    name: "Better Retention",
+    changes: { repeatRate: 0.5 }
+  },
+  {
+    name: "Viral Growth",
+    changes: { orders: 2000, cac: 6 }
+  }
+];
+
+function toFiniteNumber(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function sanitizeInput(input = {}) {
+  const merged = { ...BASELINE, ...(input || {}) };
+  const orders = Math.max(0, toFiniteNumber(merged.orders, BASELINE.orders));
+  const price = Math.max(0, toFiniteNumber(merged.price, BASELINE.price));
+  const cogs = Math.max(0, toFiniteNumber(merged.cogs, BASELINE.cogs));
+  const cac = Math.max(0, toFiniteNumber(merged.cac, BASELINE.cac));
+  const repeatRate = Math.min(
+    0.99,
+    Math.max(0, toFiniteNumber(merged.repeatRate, BASELINE.repeatRate))
+  );
+
+  return { orders, price, cogs, cac, repeatRate };
+}
+
 function runModel(input) {
-  const { orders, price, cogs, cac, repeatRate } = input;
+  const normalized = sanitizeInput(input);
+  const { orders, price, cogs, cac, repeatRate } = normalized;
 
   const totalOrders = orders * (1 + repeatRate);
   const totalRevenue = totalOrders * price;
@@ -21,77 +68,103 @@ function runModel(input) {
   const totalProfit = totalRevenue - totalCogs - marketingCost;
   const ltv = (price - cogs) / (1 - repeatRate);
 
-  return { totalRevenue, totalProfit, ltv };
+  return {
+    ...normalized,
+    totalOrders,
+    totalRevenue,
+    totalCogs,
+    marketingCost,
+    totalProfit,
+    ltv
+  };
 }
 
 function getRecommendation({ totalProfit, ltv, cac }) {
-  if (totalProfit <= 0) return "❌ Losing money";
-  if (ltv > MIN_LTV_CAC_RATIO * cac) return "✅ Scale ads";
-  return "⚠️ Weak retention";
+  if (totalProfit <= 0) return "Losing money";
+  if (ltv >= MIN_LTV_CAC_RATIO * cac) return "Scale ads";
+  return "Weak retention";
+}
+
+function evaluateScenario(base, changes = {}, name = "Scenario") {
+  const input = sanitizeInput({ ...base, ...changes });
+  const result = runModel(input);
+  const recommendation = getRecommendation({
+    totalProfit: result.totalProfit,
+    ltv: result.ltv,
+    cac: input.cac
+  });
+
+  return {
+    name,
+    input,
+    recommendation,
+    result
+  };
 }
 
 // Scenario Runner
-
-function runScenarios(base) {
-  const scenarios = [
-    {
-      name: "Baseline",
-      changes: {}
-    },
-    {
-      name: "High CAC (ads inefficient)",
-      changes: { cac: 12 }
-    },
-    {
-      name: "Lower COGS (better supplier)",
-      changes: { cogs: 3 }
-    },
-    {
-      name: "Higher Price",
-      changes: { price: 14 }
-    },
-    {
-      name: "Better Retention",
-      changes: { repeatRate: 0.5 }
-    },
-    {
-      name: "Viral Growth",
-      changes: { orders: 2000, cac: 6 }
-    }
-  ];
-
-  scenarios.forEach((scenario) => {
-    const input = { ...base, ...scenario.changes };
-    const result = runModel(input);
-
-    const recommendation = getRecommendation({
-      ...result,
-      cac: input.cac
-    });
-
-    console.log(`\n=== ${scenario.name} ===`);
-    console.log(`Revenue: $${result.totalRevenue.toFixed(0)}`);
-    console.log(`Profit: $${result.totalProfit.toFixed(0)}`);
-    console.log(`LTV: $${result.ltv.toFixed(2)}`);
-    console.log(`→ ${recommendation}`);
+function runScenarios(base, scenarios = DEFAULT_SCENARIOS, options = {}) {
+  const { log = false } = options;
+  const results = scenarios.map((scenario, index) => {
+    const name = scenario && scenario.name ? scenario.name : `Scenario ${index + 1}`;
+    const changes = scenario && scenario.changes ? scenario.changes : {};
+    return evaluateScenario(base, changes, name);
   });
+
+  if (log) {
+    results.forEach((entry) => {
+      console.log(`\n=== ${entry.name} ===`);
+      console.log(`Revenue: $${entry.result.totalRevenue.toFixed(0)}`);
+      console.log(`Profit: $${entry.result.totalProfit.toFixed(0)}`);
+      console.log(`LTV: $${entry.result.ltv.toFixed(2)}`);
+      console.log(`→ ${entry.recommendation}`);
+    });
+  }
+
+  return results;
 }
 
 // CAC Sensitivity Test
+function testCACRange(base, options = {}) {
+  const { min = 5, max = 15, step = 1, log = false } = options;
+  const series = [];
 
-function testCACRange(base) {
-  console.log("\n=== CAC Sensitivity ===");
-
-  for (let cac = 5; cac <= 15; cac += 1) {
+  for (let cac = min; cac <= max; cac += step) {
     const result = runModel({ ...base, cac });
-
-    console.log(
-      `CAC: ${cac} → Profit: $${result.totalProfit.toFixed(0)}`
-    );
+    series.push({ cac, totalProfit: result.totalProfit });
   }
+
+  if (log) {
+    console.log("\n=== CAC Sensitivity ===");
+    series.forEach((point) => {
+      console.log(`CAC: ${point.cac} → Profit: $${point.totalProfit.toFixed(0)}`);
+    });
+  }
+
+  return series;
 }
 
-if (require.main === module) {
-  runScenarios(BASELINE);
-  testCACRange(BASELINE);
+const API = {
+  MIN_LTV_CAC_RATIO,
+  BASELINE,
+  DEFAULT_SCENARIOS,
+  sanitizeInput,
+  runModel,
+  getRecommendation,
+  evaluateScenario,
+  runScenarios,
+  testCACRange
+};
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = API;
+}
+
+if (typeof window !== "undefined") {
+  window.CPGModel = API;
+}
+
+if (typeof require !== "undefined" && require.main === module) {
+  runScenarios(BASELINE, DEFAULT_SCENARIOS, { log: true });
+  testCACRange(BASELINE, { log: true });
 }
