@@ -9,9 +9,12 @@
   const scenarioEditor = document.getElementById("scenario-editor");
   const addScenarioBtn = document.getElementById("add-scenario-btn");
   const runBtn = document.getElementById("run-btn");
+  const exportBtn = document.getElementById("export-btn");
   const errorEl = document.getElementById("error");
   const resultsBody = document.getElementById("results-body");
   const summaryCards = document.getElementById("summary-cards");
+  
+  let lastEntries = [];
 
   const fields = [
     { key: "orders", label: "Orders", step: "1" },
@@ -36,6 +39,49 @@
     if (value === "") return undefined;
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : undefined;
+  }
+
+  function generateCSV(entries) {
+    const headers = ["Scenario", "Revenue", "Profit", "LTV", "CAC", "LTV:CAC", "Recommendation"];
+    const rows = entries.map((entry) => {
+      const ratio = entry.input.cac === 0 ? "Infinity" : (entry.result.ltv / entry.input.cac).toFixed(2);
+      return [
+        escapeCSV(entry.name),
+        entry.result.totalRevenue.toFixed(2),
+        entry.result.totalProfit.toFixed(2),
+        entry.result.ltv.toFixed(2),
+        entry.input.cac.toFixed(2),
+        ratio,
+        entry.recommendation
+      ];
+    });
+    
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.join(","))
+    ].join("\n");
+    
+    return csvContent;
+  }
+
+  function escapeCSV(value) {
+    const stringValue = String(value);
+    if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n")) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
+  }
+
+  function triggerDownload(csvString, filename) {
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
   function extractScenarioRows() {
@@ -105,8 +151,12 @@
   function renderTable(entries) {
     if (!entries.length) {
       resultsBody.innerHTML = "";
+      exportBtn.disabled = true;
       return;
     }
+
+    lastEntries = entries;
+    exportBtn.disabled = false;
 
     resultsBody.innerHTML = entries
       .map((entry) => {
@@ -224,6 +274,13 @@
     scenarioEditor.appendChild(createScenarioRow());
   });
   runBtn.addEventListener("click", run);
+  exportBtn.addEventListener("click", () => {
+    const now = new Date();
+    const dateStr = now.toISOString().split("T")[0];
+    const filename = `cpg-scenarios-${dateStr}.csv`;
+    const csvContent = generateCSV(lastEntries);
+    triggerDownload(csvContent, filename);
+  });
   renderBaseForm();
   initializeScenarios();
   run();
