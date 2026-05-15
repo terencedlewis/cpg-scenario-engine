@@ -122,10 +122,20 @@
       return;
     }
 
-    warningsContainer.innerHTML = warnings
-      .map((warning) => `<div class="warning-item">${warning}</div>`)
-      .join("");
+    warningsContainer.innerHTML = "";
+    warnings.forEach((warning) => {
+      const item = document.createElement("div");
+      item.className = "warning-item";
+      item.textContent = warning;
+      warningsContainer.appendChild(item);
+    });
     warningsContainer.style.display = "grid";
+  }
+
+  function updateValidationWarnings() {
+    const base = getBaseInput();
+    const scenarios = extractScenarioRows();
+    renderValidationWarnings(validateAssumptions(base, scenarios));
   }
 
   function renderSummary(entries) {
@@ -268,6 +278,7 @@
     const removeButton = row.querySelector('[data-action="remove"]');
     removeButton.addEventListener("click", () => {
       row.remove();
+      updateValidationWarnings();
     });
 
     return row;
@@ -282,8 +293,11 @@
 
   addScenarioBtn.addEventListener("click", () => {
     scenarioEditor.appendChild(createScenarioRow());
+    updateValidationWarnings();
   });
   runBtn.addEventListener("click", run);
+  baseForm.addEventListener("input", updateValidationWarnings);
+  scenarioEditor.addEventListener("input", updateValidationWarnings);
   renderBaseForm();
   initializeScenarios();
   run();
