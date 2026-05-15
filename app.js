@@ -9,6 +9,7 @@
   const scenarioEditor = document.getElementById("scenario-editor");
   const addScenarioBtn = document.getElementById("add-scenario-btn");
   const runBtn = document.getElementById("run-btn");
+  const warningsContainer = document.getElementById("warnings-container");
   const errorEl = document.getElementById("error");
   const resultsBody = document.getElementById("results-body");
   const summaryCards = document.getElementById("summary-cards");
@@ -75,6 +76,58 @@
     return values;
   }
 
+  function validateAssumptions(baseInput, scenarios) {
+    const warnings = [];
+
+    // Validate base inputs
+    if (baseInput.price <= 0) {
+      warnings.push("Price must be greater than 0 for revenue calculation");
+    }
+    if (baseInput.cogs < 0) {
+      warnings.push("COGS cannot be negative");
+    }
+    if (baseInput.price > 0 && baseInput.cogs >= baseInput.price) {
+      warnings.push(`COGS ($${baseInput.cogs.toFixed(2)}) exceeds Price ($${baseInput.price.toFixed(2)}) — negative margin`);
+    }
+    if (baseInput.cac < 0) {
+      warnings.push("CAC cannot be negative");
+    }
+    if (baseInput.repeatRate < 0 || baseInput.repeatRate >= 1) {
+      warnings.push(`Repeat Rate (${(baseInput.repeatRate * 100).toFixed(0)}%) should be between 0 and 99%`);
+    }
+
+    // Validate scenario overrides
+    scenarios.forEach((scenario, index) => {
+      const scenarioLabel = scenario.name || `Scenario ${index + 1}`;
+      const mergedInput = { ...baseInput, ...scenario.changes };
+
+      if (mergedInput.price > 0 && mergedInput.cogs >= mergedInput.price) {
+        warnings.push(`[${scenarioLabel}] COGS exceeds Price — negative margin`);
+      }
+      if (mergedInput.cac < 0) {
+        warnings.push(`[${scenarioLabel}] CAC cannot be negative`);
+      }
+      if (mergedInput.repeatRate < 0 || mergedInput.repeatRate >= 1) {
+        warnings.push(`[${scenarioLabel}] Repeat Rate should be between 0 and 99%`);
+      }
+    });
+
+    return warnings;
+  }
+
+  function renderValidationWarnings(warnings) {
+    if (!warnings.length) {
+      warningsContainer.style.display = "none";
+      warningsContainer.innerHTML = "";
+      return;
+    }
+
+    warningsContainer.innerHTML = warnings
+      .map((warning) => `<div class="warning-item">${warning}</div>`)
+      .join("");
+    warningsContainer.style.display = "grid";
+  }
+
   function renderSummary(entries) {
     if (!entries.length) {
       summaryCards.innerHTML = "";
@@ -130,6 +183,8 @@
 
   function run() {
     errorEl.textContent = "";
+    warningsContainer.innerHTML = "";
+    warningsContainer.style.display = "none";
 
     try {
       const base = getBaseInput();
@@ -137,6 +192,10 @@
       if (!scenarios.length) {
         throw new Error("Add at least one scenario before running analysis.");
       }
+
+      const warnings = validateAssumptions(base, scenarios);
+      renderValidationWarnings(warnings);
+
       const entries = model.runScenarios(base, scenarios, { log: false });
       renderSummary(entries);
       renderTable(entries);
@@ -144,6 +203,7 @@
       errorEl.textContent = error.message;
       summaryCards.innerHTML = "";
       resultsBody.innerHTML = "";
+      warningsContainer.style.display = "none";
     }
   }
 
