@@ -13,7 +13,7 @@
   const errorEl = document.getElementById("error");
   const resultsBody = document.getElementById("results-body");
   const summaryCards = document.getElementById("summary-cards");
-  
+
   let lastEntries = [];
 
   const fields = [
@@ -55,12 +55,12 @@
         entry.recommendation
       ];
     });
-    
+
     const csvContent = [
       headers.join(","),
       ...rows.map((row) => row.join(","))
     ].join("\n");
-    
+
     return csvContent;
   }
 
